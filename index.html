@@ -1,0 +1,473 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<title>SusDrive — Upload & Gallery</title>
+<link rel="icon" href="data:," />
+<style>
+  :root{
+    --bg:#0b0f14;
+    --card: rgba(255,255,255,0.04);
+    --glass: rgba(255,255,255,0.06);
+    --muted: rgba(255,255,255,0.6);
+    --accent: #32d74b; /* green iOS */
+    --danger: #ff453a;
+    --glass-border: rgba(255,255,255,0.06);
+    --radius: 16px;
+    --pad: 14px;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+  }
+  html,body{height:100%;margin:0;background:linear-gradient(180deg,#06070a 0%, #0b0f14 100%);color:#fff;-webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;}
+  .app {
+    max-width:780px;
+    margin:24px auto;
+    padding:20px;
+  }
+
+  /* Top bar */
+  .topbar {
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:12px;
+    margin-bottom:18px;
+  }
+  .title {
+    display:flex;gap:12px; align-items:center;
+  }
+  .logo {
+    width:46px;height:46px;border-radius:12px;
+    background:linear-gradient(135deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02));
+    display:grid;place-items:center;
+    backdrop-filter: blur(8px);
+    border: 1px solid var(--glass-border);
+    box-shadow: 0 6px 18px rgba(0,0,0,0.6);
+  }
+  .title h1{font-size:18px;margin:0;letter-spacing:-0.2px;}
+  .title p{margin:0;font-size:12px;color:var(--muted)}
+
+  /* Card */
+  .card {
+    background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+    border-radius: var(--radius);
+    padding:16px;
+    border: 1px solid var(--glass-border);
+    backdrop-filter: blur(10px);
+    box-shadow: 0 8px 30px rgba(2,6,23,0.6);
+  }
+
+  /* Upload area */
+  .upload-grid { display:grid; grid-template-columns: 1fr auto; gap:12px; align-items:center; }
+  .file-preview { display:flex; gap:12px; align-items:center; min-height:52px; }
+  .file-preview img { width:64px; height:64px; object-fit:cover; border-radius:10px; border:1px solid rgba(255,255,255,0.04); }
+  .meta { font-size:13px; color:var(--muted); }
+  .controls { display:flex; gap:8px; align-items:center; }
+
+  input[type="file"]{ display:none; }
+  .btn {
+    background: #fff; color:#000; border-radius:999px; padding:10px 16px; font-weight:600;
+    border: none; box-shadow: 0 4px 14px rgba(2,6,23,0.6);
+  }
+  .btn.ghost { background:transparent; color:var(--muted); border:1px solid rgba(255,255,255,0.04); padding:8px 12px; }
+  .btn.danger { background:var(--danger); color:#fff; }
+
+  .small { font-size:12px; padding:8px 10px; border-radius:10px; }
+
+  /* Gallery */
+  .gallery {
+    margin-top:18px;
+    display:grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap:12px;
+  }
+  .tile {
+    border-radius:12px;
+    overflow:hidden;
+    background:var(--card);
+    min-height:120px;
+    display:flex;
+    flex-direction:column;
+    justify-content:space-between;
+    border:1px solid rgba(255,255,255,0.03);
+  }
+  .tile .thumb { width:100%; height:140px; object-fit:cover; background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(0,0,0,0.1)); display:block; }
+  .tile .info { padding:8px 10px; display:flex; align-items:center; justify-content:space-between; gap:8px;}
+  .filename { font-size:13px; color:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:160px; }
+  .filemeta { font-size:12px; color:var(--muted); }
+
+  /* Icons for non-images */
+  .icon-box { width:100%; height:140px; display:grid;place-items:center; font-size:40px; color:var(--muted); }
+
+  /* footer / passcode area */
+  .pass {
+    margin-top:16px; display:flex; gap:8px; align-items:center; justify-content:flex-end;
+  }
+  .hint { font-size:12px; color:var(--muted); text-align:center; margin-top:8px; }
+
+  /* mobile sizing */
+  @media (max-width:420px){
+    .app{ padding:12px; margin:8px; }
+    .gallery { grid-template-columns: repeat(2, 1fr); gap:10px; }
+    .title h1{ font-size:16px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <div class="topbar">
+    <div class="title">
+      <div class="logo">SD</div>
+      <div>
+        <h1>SusDrive</h1>
+        <p>Upload & Gallery — experimental</p>
+      </div>
+    </div>
+    <div style="display:flex; gap:10px;">
+      <button id="refreshBtn" class="btn ghost small" title="Refresh listing">Refresh</button>
+      <button id="viewBtn" class="btn small">View Repo</button>
+    </div>
+  </div>
+
+  <!-- Upload Card -->
+  <div class="card">
+    <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:12px;">
+      <div>
+        <strong>Upload file</strong>
+        <div class="hint">Select a file and upload directly to the repository</div>
+      </div>
+      <div class="controls">
+        <label class="btn" for="fileInputButton" id="chooseLabel">Choose</label>
+        <input id="fileInput" type="file" />
+        <input id="nameInput" class="small" placeholder="optional filename (e.g. folder/name.ext)" style="background:transparent;border:1px solid rgba(255,255,255,0.04);color:#fff;" />
+        <button id="uploadBtn" class="btn">Upload</button>
+      </div>
+    </div>
+
+    <div id="preview" class="file-preview" aria-hidden="true" style="opacity:0.9">
+      <img id="previewImg" src="" alt="" style="display:none" />
+      <div>
+        <div id="previewName" class="meta">No file chosen</div>
+        <div id="previewSize" class="meta" style="font-size:12px;color:var(--muted)"></div>
+      </div>
+    </div>
+
+    <div style="margin-top:12px; display:flex; gap:8px; align-items:center; justify-content:space-between;">
+      <div id="status" style="font-size:13px;color:var(--muted)">Repo: <span id="repoLabel">shubham1001010 / susdrive</span></div>
+      <div style="display:flex; gap:8px;">
+        <input id="branchInput" class="small" placeholder="branch (default: main)" style="width:160px;background:transparent;border:1px solid rgba(255,255,255,0.04);color:#fff;" />
+        <button id="clearBtn" class="btn ghost small">Clear</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Gallery Card -->
+  <div class="card" style="margin-top:14px;">
+    <div style="display:flex; justify-content:space-between; align-items:center;">
+      <strong>Repository Gallery</strong>
+      <div style="display:flex; gap:8px; align-items:center;">
+        <input id="passInput" class="small" placeholder="Enter passcode to view (8889)" style="background:transparent;border:1px solid rgba(255,255,255,0.04);color:#fff;" />
+        <button id="unlockBtn" class="btn small">Unlock</button>
+      </div>
+    </div>
+
+    <div id="galleryWrap">
+      <div id="gallery" class="gallery" style="margin-top:12px;">
+        <!-- tiles inserted here -->
+      </div>
+      <div id="empty" class="hint" style="display:none;margin-top:12px;">No files found in the repo (or uploads/ folder).</div>
+    </div>
+
+  </div>
+
+  <div class="hint" style="margin-top:10px;">
+    Anyone can upload using this page. Viewing files is protected by a passcode. (passcode: <strong>8889</strong>)
+  </div>
+</div>
+
+<script>
+/* =========================
+   CONFIG - paste your token below
+   ========================= */
+const GITHUB_TOKEN = "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"; // <-- PUT your github_pat_xxx HERE
+const REPO_OWNER = "shubham1001010";
+const REPO_NAME = "susdrive";
+const VIEW_PASSCODE = "8889"; // change if you want
+/* ========================= */
+
+const fileInput = document.getElementById('fileInput');
+const chooseLabel = document.getElementById('chooseLabel');
+const previewImg = document.getElementById('previewImg');
+const previewName = document.getElementById('previewName');
+const previewSize = document.getElementById('previewSize');
+const uploadBtn = document.getElementById('uploadBtn');
+const nameInput = document.getElementById('nameInput');
+const status = document.getElementById('status');
+const repoLabel = document.getElementById('repoLabel');
+const branchInput = document.getElementById('branchInput');
+const gallery = document.getElementById('gallery');
+const empty = document.getElementById('empty');
+const passInput = document.getElementById('passInput');
+const unlockBtn = document.getElementById('unlockBtn');
+const viewBtn = document.getElementById('viewBtn');
+const refreshBtn = document.getElementById('refreshBtn');
+const clearBtn = document.getElementById('clearBtn');
+
+repoLabel.textContent = `${REPO_OWNER} / ${REPO_NAME}`;
+
+let selectedFile = null;
+
+chooseLabel.addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', e => {
+  selectedFile = e.target.files[0];
+  if(!selectedFile){
+    previewImg.style.display = 'none';
+    previewName.textContent = 'No file chosen';
+    previewSize.textContent = '';
+    return;
+  }
+  previewName.textContent = selectedFile.name;
+  previewSize.textContent = formatBytes(selectedFile.size);
+  if(selectedFile.type.startsWith('image/')){
+    const url = URL.createObjectURL(selectedFile);
+    previewImg.src = url;
+    previewImg.style.display = 'block';
+  } else {
+    previewImg.style.display = 'none';
+  }
+});
+
+// Upload handler
+uploadBtn.addEventListener('click', async () => {
+  if(!GITHUB_TOKEN || GITHUB_TOKEN.includes("paste_your")) {
+    return alert("Please paste your fine-grained GitHub token into the top of the file (GITHUB_TOKEN).");
+  }
+  if(!selectedFile) return alert("Choose a file first.");
+  uploadBtn.disabled = true;
+  uploadBtn.textContent = "Uploading...";
+
+  const filenameInput = (nameInput.value || selectedFile.name).trim();
+  // default folder 'uploads'
+  const targetPath = filenameInput.startsWith('/') ? filenameInput.slice(1) : `uploads/${Date.now()}-${filenameInput}`;
+
+  const branch = branchInput.value.trim() || 'main';
+
+  try {
+    const base64 = await fileToBase64(selectedFile);
+    const apiUrl = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${encodeURIComponent(targetPath)}`;
+
+    const body = {
+      message: `Upload via SusDrive: ${selectedFile.name}`,
+      content: base64,
+      branch: branch
+    };
+
+    const res = await fetch(apiUrl, {
+      method: 'PUT',
+      headers: {
+        Authorization: `token ${GITHUB_TOKEN}`,
+        'Content-Type': 'application/json',
+        Accept: 'application/vnd.github.v3+json'
+      },
+      body: JSON.stringify(body)
+    });
+
+    const json = await res.json();
+    if(res.ok){
+      alert(`Uploaded: ${json.content.path}`);
+      // optional: auto-refresh gallery if unlocked
+      if(localStorage.getItem('susdrive_unlocked') === '1') loadGallery();
+      // clear input
+      fileInput.value = '';
+      selectedFile = null;
+      previewImg.style.display = 'none';
+      previewName.textContent = 'No file chosen';
+      previewSize.textContent = '';
+    } else {
+      console.error(json);
+      alert('Upload error: ' + (json.message || JSON.stringify(json)));
+    }
+  } catch(err){
+    console.error(err);
+    alert('Upload failed: ' + err.message);
+  } finally {
+    uploadBtn.disabled = false;
+    uploadBtn.textContent = "Upload";
+  }
+});
+
+// Passcode / view
+unlockBtn.addEventListener('click', () => {
+  const pass = passInput.value.trim();
+  attemptUnlock(pass);
+});
+viewBtn.addEventListener('click', () => {
+  const saved = localStorage.getItem('susdrive_unlocked');
+  if(saved === '1'){
+    // already unlocked: show gallery (scroll)
+    document.querySelector('#galleryWrap').scrollIntoView({behavior:'smooth'});
+    loadGallery();
+  } else {
+    // open pass prompt
+    passInput.focus();
+  }
+});
+refreshBtn.addEventListener('click', () => {
+  if(localStorage.getItem('susdrive_unlocked') === '1') loadGallery();
+  else alert('Enter passcode (8889) to view contents.');
+});
+
+clearBtn.addEventListener('click', () => {
+  fileInput.value = '';
+  nameInput.value = '';
+  selectedFile = null;
+  previewImg.style.display = 'none';
+  previewName.textContent = 'No file chosen';
+  previewSize.textContent = '';
+});
+
+// helper: attempt unlock
+function attemptUnlock(pass){
+  if(pass === VIEW_PASSCODE){
+    localStorage.setItem('susdrive_unlocked', '1');
+    passInput.value = '';
+    alert('Unlocked! Loading repository contents...');
+    loadGallery();
+  } else {
+    alert('Incorrect passcode.');
+  }
+}
+
+// load gallery from repo
+async function loadGallery(){
+  if(!GITHUB_TOKEN || GITHUB_TOKEN.includes("paste_your")) {
+    return alert("Please paste your fine-grained GitHub token into the top of the file (GITHUB_TOKEN).");
+  }
+
+  gallery.innerHTML = '';
+  empty.style.display = 'none';
+
+  // Try to list uploads/ folder first
+  const branch = branchInput.value.trim() || 'main';
+  const tryPaths = [`uploads`, '']; // first uploads, then root
+  let items = null;
+
+  for(const p of tryPaths){
+    const url = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${p ? p + '/' : ''}?ref=${encodeURIComponent(branch)}`;
+    try {
+      const res = await fetch(url, {
+        headers: { Authorization: `token ${GITHUB_TOKEN}`, Accept: 'application/vnd.github.v3+json' }
+      });
+      if(res.status === 404) {
+        continue; // try next path
+      }
+      const json = await res.json();
+      if(Array.isArray(json)){
+        items = json;
+        break;
+      }
+    } catch(err){
+      console.error('list error',err);
+    }
+  }
+
+  if(!items || items.length === 0){
+    empty.style.display = 'block';
+    return;
+  }
+
+  // Sort newest first by name or by path — GitHub returns arbitrary order
+  items.sort((a,b) => (b.sha || '').localeCompare(a.sha || ''));
+
+  for(const item of items){
+    const tile = document.createElement('div');
+    tile.className = 'tile';
+    const filename = item.name || item.path || '';
+    const lower = filename.toLowerCase();
+    const isImage = lower.endsWith('.png') || lower.endsWith('.jpg') || lower.endsWith('.jpeg') || lower.endsWith('.gif') || lower.endsWith('.webp') || lower.endsWith('.bmp') || lower.endsWith('.svg');
+
+    if(isImage && item.download_url){
+      const img = document.createElement('img');
+      img.className = 'thumb';
+      // Use download_url which is available in file items
+      img.src = item.download_url;
+      img.alt = filename;
+      img.loading = 'lazy';
+      tile.appendChild(img);
+    } else {
+      // non-image icon area
+      const icon = document.createElement('div');
+      icon.className = 'icon-box';
+      icon.innerHTML = '📄';
+      tile.appendChild(icon);
+    }
+
+    const info = document.createElement('div');
+    info.className = 'info';
+    const nameEl = document.createElement('div');
+    nameEl.className = 'filename';
+    nameEl.textContent = filename;
+    const metaEl = document.createElement('div');
+    metaEl.className = 'filemeta';
+    metaEl.textContent = item.type === 'dir' ? 'Folder' : readableType(item.size);
+
+    info.appendChild(nameEl);
+    info.appendChild(metaEl);
+    tile.appendChild(info);
+
+    // click opens file or folder
+    tile.style.cursor = 'pointer';
+    tile.addEventListener('click', (e) => {
+      if(item.type === 'dir'){
+        // open the folder on GitHub web
+        const ghUrl = `https://github.com/${REPO_OWNER}/${REPO_NAME}/tree/${branch}/${encodeURIComponent(item.path)}`;
+        window.open(ghUrl, '_blank');
+      } else {
+        // open raw/download or github page
+        const openUrl = item.download_url || item.html_url || (`https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/${branch}/${item.path}`);
+        window.open(openUrl, '_blank');
+      }
+    });
+
+    gallery.appendChild(tile);
+  }
+
+  // smooth scroll to gallery
+  document.querySelector('#galleryWrap').scrollIntoView({behavior:'smooth'});
+}
+
+// small helpers
+function fileToBase64(file){
+  return new Promise((res,rej) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = reader.result;
+      // strip prefix
+      const comma = dataUrl.indexOf(',');
+      res(dataUrl.slice(comma+1));
+    };
+    reader.onerror = e => rej(e);
+    reader.readAsDataURL(file);
+  });
+}
+function formatBytes(bytes,dec=2){
+  if(bytes === 0) return '0 B';
+  const k = 1024, dm = dec<0?0:dec;
+  const sizes = ['B','KB','MB','GB','TB'];
+  const i = Math.floor(Math.log(bytes)/Math.log(k));
+  return parseFloat((bytes/Math.pow(k,i)).toFixed(dm)) + ' ' + sizes[i];
+}
+function readableType(size){
+  return size ? formatBytes(size) : '';
+}
+
+/* Auto-load if unlocked already */
+if(localStorage.getItem('susdrive_unlocked') === '1'){
+  // small delay: allow render
+  setTimeout(loadGallery, 600);
+}
+
+</script>
+</body>
+</html>
